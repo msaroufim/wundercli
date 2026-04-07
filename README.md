@@ -11,6 +11,8 @@ todo add text
 todo a text
 todo end ID
 todo e ID
+todo --verbose add text
+todo --verbose end ID
 todo list
 todo l
 ```
@@ -19,8 +21,9 @@ todo l
 
 - Active todos are stored in `~/.local/share/todo-cli/todos.txt`.
 - Completed todos are stored in `~/.local/share/todo-cli/completed.txt`.
-- Completed todos are also archived to `~/Documents/todo-cli/completed.txt` by default.
-- Set `TODO_ARCHIVE_PATH` to change the archive file location.
+- Set `TODO_ARCHIVE_PATH` if you want `todo end` to also write a second archive copy somewhere else.
+- By default, `todo add` and `todo end` stay quiet. Use `todo list` to inspect your todos.
+- Use `--verbose` or `TODO_VERBOSE=1` if you want `add` and `end` to print confirmations and file paths.
 - `todo end` plays a bundled `Achievement bell` sound by default.
 - Set `TODO_END_SOUND=off` to disable it, or set `TODO_END_SOUND` to another audio file path.
 - Reinstalling the binary does not remove your todo data.
@@ -34,6 +37,8 @@ cargo run -- list
 cargo run -- l
 cargo run -- end 1
 cargo run -- e 1
+cargo run -- --verbose add buy milk
+cargo run -- --verbose end 1
 ```
 
 ## Configure Archive Path
@@ -47,6 +52,14 @@ export TODO_ARCHIVE_PATH=~/Documents/my-todos/done.txt
 ```bash
 export TODO_END_SOUND=off
 export TODO_END_SOUND=/System/Library/Sounds/Glass.aiff
+```
+
+## Verbose Mode
+
+```bash
+todo --verbose add buy milk
+todo --verbose end 1
+export TODO_VERBOSE=1
 ```
 
 ## Build

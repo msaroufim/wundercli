@@ -3,16 +3,17 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 const ACTIVE_FILE: &str = "todos.txt";
 const COMPLETED_FILE: &str = "completed.txt";
 const ARCHIVE_ENV_VAR: &str = "TODO_ARCHIVE_PATH";
 const END_SOUND_ENV_VAR: &str = "TODO_END_SOUND";
+const VERBOSE_ENV_VAR: &str = "TODO_VERBOSE";
 const DATA_DIR: &str = ".local/share/todo-cli";
-const ARCHIVE_DIR: &str = "todo-cli";
-const ARCHIVE_FILE: &str = "completed.txt";
-const DEFAULT_END_SOUND_FILE: &str = "achievement-bell.mp3";
-const BUNDLED_END_SOUND: &[u8] = include_bytes!("../assets/achievement-bell.mp3");
+const DEFAULT_END_SOUND_FILE: &str = "achievement-bell.wav";
+const BUNDLED_END_SOUND: &[u8] = include_bytes!("../assets/achievement-bell.wav");
 
 #[derive(Clone, Debug)]
 struct Todo {
@@ -28,7 +29,11 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let args: Vec<String> = env::args().collect();
+    let verbose = env::args().any(|arg| arg == "--verbose" || arg == "-v")
+        || env_flag(VERBOSE_ENV_VAR);
+    let args: Vec<String> = env::args()
+        .filter(|arg| arg != "--verbose" && arg != "-v")
+        .collect();
 
     match args.get(1).map(String::as_str) {
         Some("add") | Some("a") => {
@@ -38,7 +43,7 @@ fn run() -> Result<(), String> {
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
                 .ok_or_else(|| "Usage: todo add|a text".to_string())?;
-            add_todo(&text)
+            add_todo(&text, verbose)
         }
         Some("end") | Some("e") => {
             let id = args
@@ -46,7 +51,7 @@ fn run() -> Result<(), String> {
                 .ok_or_else(|| "Usage: todo end|e ID".to_string())?
                 .parse::<u32>()
                 .map_err(|_| "ID must be a positive number".to_string())?;
-            end_todo(id)
+            end_todo(id, verbose)
         }
         Some("list") | Some("l") => list_todos(),
         _ => {
@@ -56,7 +61,7 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn add_todo(text: &str) -> Result<(), String> {
+fn add_todo(text: &str, verbose: bool) -> Result<(), String> {
     let active_path = data_file(ACTIVE_FILE)?;
     let completed_path = data_file(COMPLETED_FILE)?;
     let mut active = read_todos(&active_path)?;
@@ -78,11 +83,13 @@ fn add_todo(text: &str) -> Result<(), String> {
     active.push(todo.clone());
     write_todos(&active_path, &active)?;
 
-    println!("Added [{0}] {1}", todo.id, todo.text);
+    if verbose {
+        println!("Added [{0}] {1}", todo.id, todo.text);
+    }
     Ok(())
 }
 
-fn end_todo(id: u32) -> Result<(), String> {
+fn end_todo(id: u32, verbose: bool) -> Result<(), String> {
     let active_path = data_file(ACTIVE_FILE)?;
     let completed_path = data_file(COMPLETED_FILE)?;
     let archive_path = archive_file()?;
@@ -97,13 +104,19 @@ fn end_todo(id: u32) -> Result<(), String> {
     write_todos(&active_path, &active)?;
 
     append_todo(&completed_path, &done)?;
-    append_todo(&archive_path, &done)?;
+    if let Some(path) = archive_path.as_ref() {
+        append_todo(path, &done)?;
+    }
 
     play_end_sound();
 
-    println!("Completed [{0}] {1}", done.id, done.text);
-    println!("Saved completed todos in {}", completed_path.display());
-    println!("Archived to {}", archive_path.display());
+    if verbose {
+        println!("Completed [{0}] {1}", done.id, done.text);
+        println!("Completed list: {}", completed_path.display());
+        if let Some(path) = archive_path.as_ref() {
+            println!("Archive copy: {}", path.display());
+        }
+    }
     Ok(())
 }
 
@@ -130,11 +143,14 @@ fn print_help() {
     println!("todo e ID");
     println!("todo list");
     println!("todo l");
+    println!("todo --verbose add text");
+    println!("todo --verbose end ID");
     println!("Active path: ~/.local/share/todo-cli/todos.txt");
     println!("Completed path: ~/.local/share/todo-cli/completed.txt");
+    println!("Archive path: optional via ${}", ARCHIVE_ENV_VAR);
     println!(
-        "Archive path: ${} or ~/Documents/{}/{}",
-        ARCHIVE_ENV_VAR, ARCHIVE_DIR, ARCHIVE_FILE
+        "Verbose mode: --verbose or ${}",
+        VERBOSE_ENV_VAR
     );
     println!(
         "End sound: ${} (set to 'off' to disable, default bundled {})",
@@ -149,26 +165,23 @@ fn data_file(name: &str) -> Result<PathBuf, String> {
     Ok(dir.join(name))
 }
 
-fn archive_file() -> Result<PathBuf, String> {
-    if let Ok(path) = env::var(ARCHIVE_ENV_VAR) {
-        let path = path.trim();
-        if path.is_empty() {
-            return Err(format!("{} is set but empty", ARCHIVE_ENV_VAR));
-        }
+fn archive_file() -> Result<Option<PathBuf>, String> {
+    let Ok(path) = env::var(ARCHIVE_ENV_VAR) else {
+        return Ok(None);
+    };
 
-        let path = expand_home(path)?;
-
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(io_to_string)?;
-        }
-
-        return Ok(path);
+    let path = path.trim();
+    if path.is_empty() {
+        return Err(format!("{} is set but empty", ARCHIVE_ENV_VAR));
     }
 
-    let home = env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
-    let dir = Path::new(&home).join("Documents").join(ARCHIVE_DIR);
-    fs::create_dir_all(&dir).map_err(io_to_string)?;
-    Ok(dir.join(ARCHIVE_FILE))
+    let path = expand_home(path)?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(io_to_string)?;
+    }
+
+    Ok(Some(path))
 }
 
 fn expand_home(path: &str) -> Result<PathBuf, String> {
@@ -183,6 +196,19 @@ fn expand_home(path: &str) -> Result<PathBuf, String> {
     }
 
     Ok(PathBuf::from(path))
+}
+
+fn env_flag(name: &str) -> bool {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            !trimmed.is_empty()
+                && trimmed != "0"
+                && !trimmed.eq_ignore_ascii_case("false")
+                && !trimmed.eq_ignore_ascii_case("off")
+        }
+        Err(_) => false,
+    }
 }
 
 fn read_todos(path: &Path) -> Result<Vec<Todo>, String> {
@@ -257,9 +283,15 @@ fn play_end_sound() {
         _ => return,
     };
 
-    if let Err(err) = Command::new("afplay").arg(sound_path).status() {
+    let escaped_path = sound_path.to_string_lossy().replace('\'', r"'\''");
+    let command = format!("nohup afplay '{}' >/dev/null 2>&1 </dev/null &", escaped_path);
+
+    if let Err(err) = Command::new("sh").arg("-c").arg(command).spawn() {
         eprintln!("Warning: could not play end sound: {err}");
+        return;
     }
+
+    thread::sleep(Duration::from_millis(150));
 }
 
 fn end_sound_path() -> Option<PathBuf> {
