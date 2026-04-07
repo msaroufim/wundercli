@@ -63,20 +63,10 @@ fn run() -> Result<(), String> {
 
 fn add_todo(text: &str, verbose: bool) -> Result<(), String> {
     let active_path = data_file(ACTIVE_FILE)?;
-    let completed_path = data_file(COMPLETED_FILE)?;
     let mut active = read_todos(&active_path)?;
-    let completed = read_todos(&completed_path)?;
-
-    let next_id = active
-        .iter()
-        .chain(completed.iter())
-        .map(|todo| todo.id)
-        .max()
-        .unwrap_or(0)
-        + 1;
 
     let todo = Todo {
-        id: next_id,
+        id: next_active_id(&active),
         text: text.to_string(),
     };
 
@@ -87,6 +77,24 @@ fn add_todo(text: &str, verbose: bool) -> Result<(), String> {
         println!("Added [{0}] {1}", todo.id, todo.text);
     }
     Ok(())
+}
+
+fn next_active_id(active: &[Todo]) -> u32 {
+    let mut used_ids: Vec<u32> = active.iter().map(|todo| todo.id).collect();
+    used_ids.sort_unstable();
+
+    let mut next_id = 1;
+    for id in used_ids {
+        if id < next_id {
+            continue;
+        }
+        if id > next_id {
+            break;
+        }
+        next_id += 1;
+    }
+
+    next_id
 }
 
 fn end_todo(id: u32, verbose: bool) -> Result<(), String> {
