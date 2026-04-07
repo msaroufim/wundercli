@@ -1,6 +1,8 @@
 # todo
 
-Minimal Rust CLI for personal global todos.
+Minimal Rust CLI for personal global todos, with a satisfying completion sound inspired by Wunderlist.
+
+This is a terminal-first todo experience: quick capture, quick listing, and a rewarding little bell when you finish something.
 
 ## Commands
 
