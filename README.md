@@ -19,6 +19,8 @@ todo l
 - Completed todos are stored in `~/.local/share/todo-cli/completed.txt`.
 - Completed todos are also archived to `~/Documents/todo-cli/completed.txt` by default.
 - Set `TODO_ARCHIVE_PATH` to change the archive file location.
+- `todo end` plays a bundled `Achievement bell` sound by default.
+- Set `TODO_END_SOUND=off` to disable it, or set `TODO_END_SOUND` to another audio file path.
 - Reinstalling the binary does not remove your todo data.
 
 ## Run
@@ -36,6 +38,13 @@ cargo run -- e 1
 
 ```bash
 export TODO_ARCHIVE_PATH=~/Documents/my-todos/done.txt
+```
+
+## Configure End Sound
+
+```bash
+export TODO_END_SOUND=off
+export TODO_END_SOUND=/System/Library/Sounds/Glass.aiff
 ```
 
 ## Build

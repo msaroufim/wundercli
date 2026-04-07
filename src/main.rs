@@ -2,13 +2,17 @@ use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const ACTIVE_FILE: &str = "todos.txt";
 const COMPLETED_FILE: &str = "completed.txt";
 const ARCHIVE_ENV_VAR: &str = "TODO_ARCHIVE_PATH";
+const END_SOUND_ENV_VAR: &str = "TODO_END_SOUND";
 const DATA_DIR: &str = ".local/share/todo-cli";
 const ARCHIVE_DIR: &str = "todo-cli";
 const ARCHIVE_FILE: &str = "completed.txt";
+const DEFAULT_END_SOUND_FILE: &str = "achievement-bell.mp3";
+const BUNDLED_END_SOUND: &[u8] = include_bytes!("../assets/achievement-bell.mp3");
 
 #[derive(Clone, Debug)]
 struct Todo {
@@ -95,6 +99,8 @@ fn end_todo(id: u32) -> Result<(), String> {
     append_todo(&completed_path, &done)?;
     append_todo(&archive_path, &done)?;
 
+    play_end_sound();
+
     println!("Completed [{0}] {1}", done.id, done.text);
     println!("Saved completed todos in {}", completed_path.display());
     println!("Archived to {}", archive_path.display());
@@ -129,6 +135,10 @@ fn print_help() {
     println!(
         "Archive path: ${} or ~/Documents/{}/{}",
         ARCHIVE_ENV_VAR, ARCHIVE_DIR, ARCHIVE_FILE
+    );
+    println!(
+        "End sound: ${} (set to 'off' to disable, default bundled {})",
+        END_SOUND_ENV_VAR, DEFAULT_END_SOUND_FILE
     );
 }
 
@@ -239,6 +249,39 @@ fn append_todo(path: &Path, todo: &Todo) -> Result<(), String> {
 
 fn todo_line(todo: &Todo) -> String {
     format!("{}|{}", todo.id, todo.text.replace('\n', " "))
+}
+
+fn play_end_sound() {
+    let sound_path = match end_sound_path() {
+        Some(path) if path.is_file() => path,
+        _ => return,
+    };
+
+    let _ = Command::new("afplay").arg(sound_path).spawn();
+}
+
+fn end_sound_path() -> Option<PathBuf> {
+    match env::var(END_SOUND_ENV_VAR) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("off") {
+                return None;
+            }
+
+            expand_home(trimmed).ok()
+        }
+        Err(_) => ensure_default_end_sound().ok(),
+    }
+}
+
+fn ensure_default_end_sound() -> Result<PathBuf, String> {
+    let path = data_file(DEFAULT_END_SOUND_FILE)?;
+
+    if !path.is_file() {
+        fs::write(&path, BUNDLED_END_SOUND).map_err(io_to_string)?;
+    }
+
+    Ok(path)
 }
 
 fn io_to_string(err: io::Error) -> String {
