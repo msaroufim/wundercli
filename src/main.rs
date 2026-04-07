@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 const ACTIVE_FILE: &str = "todos.txt";
 const COMPLETED_FILE: &str = "completed.txt";
+const ARCHIVE_ENV_VAR: &str = "TODO_ARCHIVE_PATH";
+const DATA_DIR: &str = ".local/share/todo-cli";
 const ARCHIVE_DIR: &str = "todo-cli";
 const ARCHIVE_FILE: &str = "completed.txt";
 
@@ -27,11 +29,12 @@ fn run() -> Result<(), String> {
     match args.get(1).map(String::as_str) {
         Some("add") => {
             let text = args
-                .get(2)
-                .map(|value| value.trim())
+                .get(2..)
+                .map(|parts| parts.join(" "))
+                .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
-                .ok_or_else(|| "Usage: todo add \"text\"".to_string())?;
-            add_todo(text)
+                .ok_or_else(|| "Usage: todo add text".to_string())?;
+            add_todo(&text)
         }
         Some("end") => {
             let id = args
@@ -50,8 +53,8 @@ fn run() -> Result<(), String> {
 }
 
 fn add_todo(text: &str) -> Result<(), String> {
-    let active_path = project_file(ACTIVE_FILE)?;
-    let completed_path = project_file(COMPLETED_FILE)?;
+    let active_path = data_file(ACTIVE_FILE)?;
+    let completed_path = data_file(COMPLETED_FILE)?;
     let mut active = read_todos(&active_path)?;
     let completed = read_todos(&completed_path)?;
 
@@ -76,8 +79,8 @@ fn add_todo(text: &str) -> Result<(), String> {
 }
 
 fn end_todo(id: u32) -> Result<(), String> {
-    let active_path = project_file(ACTIVE_FILE)?;
-    let completed_path = project_file(COMPLETED_FILE)?;
+    let active_path = data_file(ACTIVE_FILE)?;
+    let completed_path = data_file(COMPLETED_FILE)?;
     let archive_path = archive_file()?;
 
     let mut active = read_todos(&active_path)?;
@@ -93,11 +96,13 @@ fn end_todo(id: u32) -> Result<(), String> {
     append_todo(&archive_path, &done)?;
 
     println!("Completed [{0}] {1}", done.id, done.text);
+    println!("Saved completed todos in {}", completed_path.display());
+    println!("Archived to {}", archive_path.display());
     Ok(())
 }
 
 fn list_todos() -> Result<(), String> {
-    let active_path = project_file(ACTIVE_FILE)?;
+    let active_path = data_file(ACTIVE_FILE)?;
     let active = read_todos(&active_path)?;
 
     if active.is_empty() {
@@ -113,21 +118,58 @@ fn list_todos() -> Result<(), String> {
 }
 
 fn print_help() {
-    println!("todo add \"text\"");
+    println!("todo add text");
     println!("todo end ID");
     println!("todo list");
+    println!("Active path: ~/.local/share/todo-cli/todos.txt");
+    println!("Completed path: ~/.local/share/todo-cli/completed.txt");
+    println!(
+        "Archive path: ${} or ~/Documents/{}/{}",
+        ARCHIVE_ENV_VAR, ARCHIVE_DIR, ARCHIVE_FILE
+    );
 }
 
-fn project_file(name: &str) -> Result<PathBuf, String> {
-    let cwd = env::current_dir().map_err(io_to_string)?;
-    Ok(cwd.join(name))
+fn data_file(name: &str) -> Result<PathBuf, String> {
+    let home = env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
+    let dir = Path::new(&home).join(DATA_DIR);
+    fs::create_dir_all(&dir).map_err(io_to_string)?;
+    Ok(dir.join(name))
 }
 
 fn archive_file() -> Result<PathBuf, String> {
+    if let Ok(path) = env::var(ARCHIVE_ENV_VAR) {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(format!("{} is set but empty", ARCHIVE_ENV_VAR));
+        }
+
+        let path = expand_home(path)?;
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(io_to_string)?;
+        }
+
+        return Ok(path);
+    }
+
     let home = env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
     let dir = Path::new(&home).join("Documents").join(ARCHIVE_DIR);
     fs::create_dir_all(&dir).map_err(io_to_string)?;
     Ok(dir.join(ARCHIVE_FILE))
+}
+
+fn expand_home(path: &str) -> Result<PathBuf, String> {
+    if path == "~" {
+        let home = env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
+        return Ok(PathBuf::from(home));
+    }
+
+    if let Some(rest) = path.strip_prefix("~/") {
+        let home = env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
+        return Ok(PathBuf::from(home).join(rest));
+    }
+
+    Ok(PathBuf::from(path))
 }
 
 fn read_todos(path: &Path) -> Result<Vec<Todo>, String> {
