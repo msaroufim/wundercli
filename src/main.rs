@@ -257,7 +257,9 @@ fn play_end_sound() {
         _ => return,
     };
 
-    let _ = Command::new("afplay").arg(sound_path).spawn();
+    if let Err(err) = Command::new("afplay").arg(sound_path).status() {
+        eprintln!("Warning: could not play end sound: {err}");
+    }
 }
 
 fn end_sound_path() -> Option<PathBuf> {
