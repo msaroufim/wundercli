@@ -329,3 +329,53 @@ fn ensure_default_end_sound() -> Result<PathBuf, String> {
 fn io_to_string(err: io::Error) -> String {
     err.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{next_active_id, Todo};
+
+    #[test]
+    fn next_active_id_starts_at_one() {
+        assert_eq!(next_active_id(&[]), 1);
+    }
+
+    #[test]
+    fn next_active_id_fills_smallest_gap() {
+        let active = vec![
+            Todo {
+                id: 1,
+                text: "first".to_string(),
+            },
+            Todo {
+                id: 3,
+                text: "third".to_string(),
+            },
+            Todo {
+                id: 4,
+                text: "fourth".to_string(),
+            },
+        ];
+
+        assert_eq!(next_active_id(&active), 2);
+    }
+
+    #[test]
+    fn next_active_id_ignores_order() {
+        let active = vec![
+            Todo {
+                id: 5,
+                text: "fifth".to_string(),
+            },
+            Todo {
+                id: 2,
+                text: "second".to_string(),
+            },
+            Todo {
+                id: 1,
+                text: "first".to_string(),
+            },
+        ];
+
+        assert_eq!(next_active_id(&active), 3);
+    }
+}
