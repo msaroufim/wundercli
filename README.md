@@ -54,5 +54,5 @@ cargo build --release
 
 ## Releases
 
-- Tagging `v*` publishes macOS release binaries through GitHub Actions.
-- The release workflow builds `todo` for Apple Silicon and Intel macOS and attaches `.tar.gz` archives to the GitHub release.
+- Tagging `v*` publishes a macOS Apple Silicon release binary through GitHub Actions.
+- The release workflow attaches a `todo-macos-aarch64.tar.gz` archive to the GitHub release.
