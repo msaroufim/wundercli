@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS binary
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            archive_suffix: macos-x86_64
+          - os: macos-14
+            archive_suffix: macos-aarch64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package archive
+        run: |
+          mkdir -p dist
+          cp target/release/todo dist/todo
+          tar -C dist -czf "todo-${{ matrix.archive_suffix }}.tar.gz" todo
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: todo-${{ matrix.archive_suffix }}.tar.gz

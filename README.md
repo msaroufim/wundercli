@@ -7,14 +7,11 @@ This is a terminal-first todo experience: quick capture, quick listing, and a re
 ## Commands
 
 ```bash
-todo add text
-todo a text
-todo end ID
-todo e ID
-todo --verbose add text
-todo --verbose end ID
-todo list
-todo l
+todo (a)dd text
+todo (e)nd ID
+todo (l)ist
+todo --verbose (a)dd text
+todo --verbose (e)nd ID
 ```
 
 ## Storage
@@ -27,19 +24,6 @@ todo l
 - `todo end` plays a bundled `Achievement bell` sound by default.
 - Set `TODO_END_SOUND=off` to disable it, or set `TODO_END_SOUND` to another audio file path.
 - Reinstalling the binary does not remove your todo data.
-
-## Run
-
-```bash
-cargo run -- add buy milk
-cargo run -- a buy milk
-cargo run -- list
-cargo run -- l
-cargo run -- end 1
-cargo run -- e 1
-cargo run -- --verbose add buy milk
-cargo run -- --verbose end 1
-```
 
 ## Configure Archive Path
 
@@ -67,3 +51,8 @@ export TODO_VERBOSE=1
 ```bash
 cargo build --release
 ```
+
+## Releases
+
+- Tagging `v*` publishes macOS release binaries through GitHub Actions.
+- The release workflow builds `todo` for Apple Silicon and Intel macOS and attaches `.tar.gz` archives to the GitHub release.
