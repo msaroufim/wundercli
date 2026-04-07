@@ -6,8 +6,11 @@ Minimal Rust CLI for personal global todos.
 
 ```bash
 todo add text
+todo a text
 todo end ID
+todo e ID
 todo list
+todo l
 ```
 
 ## Storage
@@ -22,8 +25,11 @@ todo list
 
 ```bash
 cargo run -- add buy milk
+cargo run -- a buy milk
 cargo run -- list
+cargo run -- l
 cargo run -- end 1
+cargo run -- e 1
 ```
 
 ## Configure Archive Path

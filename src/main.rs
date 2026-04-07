@@ -27,24 +27,24 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     match args.get(1).map(String::as_str) {
-        Some("add") => {
+        Some("add") | Some("a") => {
             let text = args
                 .get(2..)
                 .map(|parts| parts.join(" "))
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
-                .ok_or_else(|| "Usage: todo add text".to_string())?;
+                .ok_or_else(|| "Usage: todo add|a text".to_string())?;
             add_todo(&text)
         }
-        Some("end") => {
+        Some("end") | Some("e") => {
             let id = args
                 .get(2)
-                .ok_or_else(|| "Usage: todo end ID".to_string())?
+                .ok_or_else(|| "Usage: todo end|e ID".to_string())?
                 .parse::<u32>()
                 .map_err(|_| "ID must be a positive number".to_string())?;
             end_todo(id)
         }
-        Some("list") => list_todos(),
+        Some("list") | Some("l") => list_todos(),
         _ => {
             print_help();
             Ok(())
@@ -119,8 +119,11 @@ fn list_todos() -> Result<(), String> {
 
 fn print_help() {
     println!("todo add text");
+    println!("todo a text");
     println!("todo end ID");
+    println!("todo e ID");
     println!("todo list");
+    println!("todo l");
     println!("Active path: ~/.local/share/todo-cli/todos.txt");
     println!("Completed path: ~/.local/share/todo-cli/completed.txt");
     println!(
